@@ -29,7 +29,6 @@ Instead of sending emails/SMS/push notifications synchronously inside an API req
 - [Getting Started](#getting-started)
 - [Running the System](#running-the-system)
 - [Engineering Highlights](#engineering-highlights)
-- [Contributing](#contributing)
 
 ---
 
@@ -104,12 +103,12 @@ Worker:  Queue → Process job → Deliver notification → Update status
 
 ### Design principle: separation of responsibilities
 
-| Layer | Responsibility |
-|---|---|
-| **Controller** | Handle HTTP requests, validate input |
-| **Model** | Represent notification data in MongoDB |
-| **Queue** | Represent a background work instruction |
-| **Worker** | Consume jobs and perform the actual work |
+| Layer                 | Responsibility                                               |
+| --------------------- | ------------------------------------------------------------ |
+| **Controller**        | Handle HTTP requests, validate input                         |
+| **Model**             | Represent notification data in MongoDB                       |
+| **Queue**             | Represent a background work instruction                      |
+| **Worker**            | Consume jobs and perform the actual work                     |
 | **Service / Handler** | Execute the channel-specific delivery logic (email/SMS/push) |
 
 A **notification** (persistent business data in MongoDB) and a **job** (background work instruction in BullMQ/Redis) are treated as two distinct concepts — the job only carries a `notificationId`, and the worker re-fetches the full record from MongoDB. This avoids duplicating data across systems.
@@ -187,13 +186,13 @@ notification-service/
 }
 ```
 
-| Field | Description |
-|---|---|
-| `userId` | Identifies the notification's owner |
-| `message` | Notification content |
-| `type` | `email` \| `sms` \| `push` |
+| Field       | Description                                                              |
+| ----------- | ------------------------------------------------------------------------ |
+| `userId`    | Identifies the notification's owner                                      |
+| `message`   | Notification content                                                     |
+| `type`      | `email` \| `sms` \| `push`                                               |
 | `recipient` | Meaning depends on `type` — email address, phone number, or device token |
-| `status` | `pending` → `sent` or `failed` |
+| `status`    | `pending` → `sent` or `failed`                                           |
 
 ---
 
@@ -206,6 +205,7 @@ POST /api/notifications
 ```
 
 **Body:**
+
 ```json
 {
   "userId": "U123",
@@ -219,11 +219,11 @@ POST /api/notifications
 
 Validation happens **before** the MongoDB document and the queue job are created, so invalid requests never enter the pipeline.
 
-| Response | Meaning |
-|---|---|
-| `201` | Notification accepted and queued |
-| `400` | Missing/invalid fields, invalid type, or invalid recipient format |
-| `429` | Rate limit exceeded |
+| Response | Meaning                                                           |
+| -------- | ----------------------------------------------------------------- |
+| `201`    | Notification accepted and queued                                  |
+| `400`    | Missing/invalid fields, invalid type, or invalid recipient format |
+| `429`    | Rate limit exceeded                                               |
 
 ---
 
@@ -235,10 +235,10 @@ GET /api/notifications/:id
 
 Uses `req.params.id` → `Notification.findById(id)`
 
-| Response | Meaning |
-|---|---|
-| `200` | Notification found |
-| `404` | Notification does not exist |
+| Response | Meaning                     |
+| -------- | --------------------------- |
+| `200`    | Notification found          |
+| `404`    | Notification does not exist |
 
 ---
 
@@ -314,10 +314,10 @@ The worker tracks `job.attemptsMade` (0 before execution, incrementing on each f
 
 Two distinct concepts are involved, and this project implements only the first:
 
-| Type | Question it answers | Implemented? |
-|---|---|---|
-| **API rate limiting** | How many requests can a client send? | ✅ Yes (Redis-based) |
-| **BullMQ worker rate limiting** | How fast should the worker process jobs? | ❌ Not implemented |
+| Type                            | Question it answers                      | Implemented?         |
+| ------------------------------- | ---------------------------------------- | -------------------- |
+| **API rate limiting**           | How many requests can a client send?     | ✅ Yes (Redis-based) |
+| **BullMQ worker rate limiting** | How fast should the worker process jobs? | ❌ Not implemented   |
 
 **Current limit:** 3 requests / 60 seconds / IP, implemented as Express middleware using Redis directly (via `ioredis`).
 
@@ -346,8 +346,6 @@ This project intentionally leaves the following unimplemented, as identified are
 - [ ] Full production-grade graceful shutdown handling
 - [ ] Automated test suite
 - [ ] Pagination on list endpoints
-
-Contributions or suggestions on any of the above are welcome — see [Contributing](#contributing).
 
 ---
 
@@ -401,11 +399,13 @@ PING
 This project runs as **two separate processes** — both must be running for the full flow to work.
 
 **Terminal 1 — API server:**
+
 ```bash
 npm run dev
 ```
 
 **Terminal 2 — Background worker:**
+
 ```bash
 npx tsx src/workers/notificationWorker.ts
 ```
@@ -419,18 +419,6 @@ npx tsx src/workers/notificationWorker.ts
 - **Defense at the edge** — request validation (schema, type, channel-specific recipient format) rejects bad input before it ever reaches the database or queue; Redis-backed rate limiting protects the API from abuse.
 - **Provider abstraction** — notification channels are handled through a common interface (`sendEmail` / `sendSms` / `sendPush`), with email live via Resend and SMS/push mocked behind the same contract, so swapping in a real provider requires no changes to the worker or controller.
 - **Type-safe throughout** — written in TypeScript across the API, queue, and worker layers.
-
----
-
-## Contributing
-
-This started as a personal learning project, but contributions, issues, and suggestions are welcome.
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m "Add your feature"`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
 
 ---
 
