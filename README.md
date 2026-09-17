@@ -1,4 +1,12 @@
-# Notification Service
+# 📬 Notification Service
+
+[![Node.js](https://img.shields.io/badge/Node.js-backend-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-typed-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Express](https://img.shields.io/badge/Express.js-API-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-database-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-queue%20backend-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+[![BullMQ](https://img.shields.io/badge/BullMQ-job%20queue-red)](https://docs.bullmq.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 A backend-focused mini-project built to understand how **asynchronous / background processing** works in real-world backend systems — using **BullMQ**, **Redis**, and **MongoDB** to decouple notification delivery from the main API request cycle.
 
@@ -8,6 +16,7 @@ Instead of sending emails/SMS/push notifications synchronously inside an API req
 
 ## Table of Contents
 
+- [Features](#features)
 - [Why This Project Exists](#why-this-project-exists)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
@@ -17,10 +26,24 @@ Instead of sending emails/SMS/push notifications synchronously inside an API req
 - [Queue & Worker Flow](#queue--worker-flow)
 - [Retry Mechanism](#retry-mechanism)
 - [Rate Limiting](#rate-limiting)
-- [Known Limitations](#known-limitations)
+- [Known Limitations](#known-limitations--roadmap)
 - [Getting Started](#getting-started)
 - [Running the System](#running-the-system)
-- [What I Learned](#what-i-learned)
+- [Engineering Highlights](#engineering-highlights)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Features
+
+- ⚡ Asynchronous notification processing via **BullMQ + Redis** job queue
+- 🔁 Automatic retries with fixed backoff on delivery failure
+- 📨 Email delivery via **Resend**, with provider-ready mock handlers for SMS and Push
+- 🧾 Notification status tracking (`pending` → `sent` / `failed`) persisted in **MongoDB**
+- 🚦 Redis-backed API rate limiting (per-IP)
+- 🧩 Clean separation between API (producer) and Worker (consumer) as independent processes
+- ✅ Request validation (required fields, type, and channel-specific recipient format)
 
 ---
 
@@ -313,19 +336,21 @@ The key is given a 60-second TTL on first creation; once it expires, the counter
 
 ---
 
-## Known Limitations
+## Known Limitations & Roadmap
 
 This project intentionally leaves the following unimplemented, as identified areas for future/production hardening:
 
-- Real SMS provider (currently mocked)
-- Real push notification provider (currently mocked)
-- Retryable vs. non-retryable error classification
-- **Transactional Outbox Pattern** — currently, MongoDB writes and `queue.add()` are two separate operations. If the MongoDB write succeeds but the queue add fails, a notification can remain `pending` forever with no corresponding job. This is a known distributed-systems consistency gap.
-- Authentication / authorization
-- Advanced monitoring / observability
-- Full production-grade graceful shutdown handling
-- Automated test suite
-- Pagination on list endpoints
+- [ ] Real SMS provider (currently mocked)
+- [ ] Real push notification provider (currently mocked)
+- [ ] Retryable vs. non-retryable error classification
+- [ ] **Transactional Outbox Pattern** — currently, MongoDB writes and `queue.add()` are two separate operations. If the MongoDB write succeeds but the queue add fails, a notification can remain `pending` forever with no corresponding job. This is a known distributed-systems consistency gap.
+- [ ] Authentication / authorization
+- [ ] Advanced monitoring / observability
+- [ ] Full production-grade graceful shutdown handling
+- [ ] Automated test suite
+- [ ] Pagination on list endpoints
+
+Contributions or suggestions on any of the above are welcome — see [Contributing](#contributing).
 
 ---
 
@@ -333,10 +358,18 @@ This project intentionally leaves the following unimplemented, as identified are
 
 ### Prerequisites
 
-- Node.js
+- Node.js (v18+ recommended)
 - Docker (for running Redis locally)
-- A MongoDB connection string
-- A Resend API key
+- A MongoDB connection string (local or [Atlas](https://www.mongodb.com/atlas))
+- A [Resend](https://resend.com/) API key
+
+### Clone & Install
+
+```bash
+git clone https://github.com/<your-username>/notification-service.git
+cd notification-service
+npm install
+```
 
 ### Environment Variables
 
@@ -384,22 +417,31 @@ npx tsx src/workers/notificationWorker.ts
 
 ---
 
-## What I Learned
+## Engineering Highlights
 
-- **Async/await in TypeScript:** an `async` function returns a `Promise`; `await` pauses for a `Promise` to settle; `Promise<void>` means it completes without a return value.
-- **`req.body` vs `req.params` vs `req.query`** — and when to use each (creation payloads, single-resource lookups, and filtering, respectively).
-- **Mongoose `findById()` vs `find()`** — the latter returns `[]`, not `null`, when nothing matches.
-- **HTTP status codes** in practice: `400` (bad input), `404` (not found), `429` (rate limited), `500` (server error).
-- **Middleware fundamentals:** `req`, `res`, `next` — and how to short-circuit a request with a rejection response.
-- **Queue vs. record:** a job is a lightweight instruction; the notification itself is the persistent business record. Keeping them separate (and passing only an ID) avoids data duplication.
-- **Redis's actual role:** it's not the queue library — BullMQ uses Redis as its coordination/storage backend, and Redis is separately useful for fast, temporary state like rate-limit counters.
-- **Why background workers matter:** decoupling slow/unreliable external work from the request-response cycle is a core scalability pattern in real backend systems.
+- **Decoupled architecture** — API and worker run as independent processes communicating only through a Redis-backed queue, with no shared in-memory state.
+- **Failure-aware design** — configurable retry/backoff policy, explicit `pending → sent/failed` status tracking, and a documented (if not yet fixed) consistency gap between the DB write and queue enqueue, identified as a candidate for the Transactional Outbox pattern.
+- **Defense at the edge** — request validation (schema, type, channel-specific recipient format) rejects bad input before it ever reaches the database or queue; Redis-backed rate limiting protects the API from abuse.
+- **Provider abstraction** — notification channels are handled through a common interface (`sendEmail` / `sendSms` / `sendPush`), with email live via Resend and SMS/push mocked behind the same contract, so swapping in a real provider requires no changes to the worker or controller.
+- **Type-safe throughout** — written in TypeScript across the API, queue, and worker layers.
 
 ---
 
-## Interview Summary
+## Contributing
 
-> I built a Notification Service as a backend mini-project to understand asynchronous processing behind the scenes. In a basic implementation, the API server would directly handle email, SMS, or push delivery, meaning every request could stay open while waiting on external services. I separated that background work using BullMQ. The API validates the notification, stores it in MongoDB with a `pending` status, and adds a job to a BullMQ queue backed by Redis. A separate worker consumes the job, checks the notification type, and calls the appropriate handler — email is integrated with Resend, while SMS and push use mock handlers. On success, MongoDB is updated to `sent`; if the worker throws an error, BullMQ automatically retries based on the configured attempts and backoff, and marks the notification `failed` once all attempts are exhausted. I also added Redis-based API rate limiting to prevent excessive notification creation requests.
+This started as a personal learning project, but contributions, issues, and suggestions are welcome.
+
+1. Fork the repo
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m "Add your feature"`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
