@@ -439,10 +439,4 @@ This started as a personal learning project, but contributions, issues, and sugg
 
 ---
 
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
 **One-sentence purpose:** Decouple notification delivery from the main API request using a Redis-backed BullMQ job queue and separate background workers, while providing retries, failure tracking, and rate limiting.
